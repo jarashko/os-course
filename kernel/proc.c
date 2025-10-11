@@ -693,3 +693,74 @@ procdump(void)
     printf("\n");
   }
 }
+
+int
+dump(void)
+{
+  struct proc *me = myproc();
+  if (!me || !me->trapframe)
+    return -1;
+
+  struct trapframe *tf = me->trapframe;
+  static const char *regnames[] = {
+    "s2","s3","s4","s5","s6","s7","s8","s9","s10","s11"
+  };
+  uint64 *base = &tf->s2;
+  for (int i = 0; i < 10; i++) {
+    printf("%s = %d\n", regnames[i], (int)base[i]);
+  }
+  return 0;
+}
+
+int
+dump2(int target_pid, int regno, uint64 *out)
+{
+  struct proc *cur = myproc();
+  if (!cur)
+    return -1;
+
+  if (regno < 2 || regno > 11)
+    return -3;
+
+  struct proc *found = 0;
+  acquire(&wait_lock);
+  for (struct proc *p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if (p->pid == target_pid) {
+      found = p;
+      break;
+    }
+    release(&p->lock);
+  }
+  release(&wait_lock);
+  if (!found)
+    return -2;
+
+  int allowed = 0;
+  for (struct proc *a = found; a; a = a->parent) {
+    if (a == cur) {
+      allowed = 1;
+      break;
+    }
+  }
+  if (!allowed) {
+    release(&found->lock);
+    return -1;
+  }
+
+  if (!found->trapframe) {
+    release(&found->lock);
+    return -2;
+  }
+
+  uint64 val = *( &found->trapframe->s2 + (regno - 2) );
+  release(&found->lock);
+
+  if (copyout(cur->pagetable,
+              (uint64)out,
+              (char*)&val,
+              sizeof(val)) < 0)
+    return -4;
+
+  return 0;
+}

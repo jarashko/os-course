@@ -91,3 +91,21 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_dump(void)
+{
+  return (uint64) dump();
+}
+
+uint64
+sys_dump2(void)
+{
+  int pid, regno;
+  uint64 user_ptr;
+  if (argint(0, &pid)   < 0 ||
+      argint(1, &regno) < 0 ||
+      argaddr(2, &user_ptr) < 0)
+    return (uint64)-1;
+  return (uint64) dump2(pid, regno, (uint64*)user_ptr);
+}
