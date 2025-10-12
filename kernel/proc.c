@@ -717,7 +717,7 @@ dump2(int target_pid, int regno, uint64 *out)
 {
   struct proc *cur = myproc();
   if (!cur)
-    return -1;
+    return -1;            
 
   if (regno < 2 || regno > 11)
     return -3;
@@ -726,26 +726,20 @@ dump2(int target_pid, int regno, uint64 *out)
   acquire(&wait_lock);
   for (struct proc *p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
-    if (p->pid == target_pid) {
-      found = p;
-      break;
-    }
+    if (p->pid == target_pid) { found = p; break; }
     release(&p->lock);
   }
   release(&wait_lock);
   if (!found)
-    return -2;
+    return -2;           
 
   int allowed = 0;
   for (struct proc *a = found; a; a = a->parent) {
-    if (a == cur) {
-      allowed = 1;
-      break;
-    }
+    if (a == cur) { allowed = 1; break; }
   }
   if (!allowed) {
     release(&found->lock);
-    return -1;
+    return -1;           
   }
 
   if (!found->trapframe) {
@@ -753,7 +747,8 @@ dump2(int target_pid, int regno, uint64 *out)
     return -2;
   }
 
-  uint64 val = *( &found->trapframe->s2 + (regno - 2) );
+  uint64 *regs_base = &found->trapframe->s2;
+  uint64 val = (uint32) regs_base[regno - 2];
   release(&found->lock);
 
   if (copyout(cur->pagetable,
