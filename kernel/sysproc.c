@@ -101,11 +101,54 @@ sys_dump(void)
 uint64
 sys_dump2(void)
 {
-  int pid, regno;
-  uint64 user_ptr;
-  if (argint(0, &pid)   < 0 ||
-      argint(1, &regno) < 0 ||
-      argaddr(2, &user_ptr) < 0)
-    return (uint64)-1;
-  return (uint64) dump2(pid, regno, (uint64*)user_ptr);
+  int  tgt_pid, regno;
+  uint64 user_dst;
+  struct proc *p;
+  struct proc *tgt = 0;
+  struct proc *me = myproc();
+  int   allow = 0;
+
+  if (argint(0, &tgt_pid) < 0 ||
+      argint(1, &regno)   < 0 ||
+      argaddr(2, &user_dst) < 0)
+    return -1;
+
+  for (p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if (p->pid == tgt_pid) {
+      tgt = p;            
+      break;
+    }
+    release(&p->lock);
+  }
+  if (!tgt)
+    return -2;
+
+  for (p = tgt; p; p = p->parent) {
+    if (p == me) {
+      allow = 1;
+      break;
+    }
+  }
+  if (!allow) {
+    release(&tgt->lock);
+    return -1;
+  }
+
+  if (regno < 2 || regno > 11) {
+    release(&tgt->lock);
+    return -3;
+  }
+
+  struct trapframe *tf = tgt->trapframe;
+  uint64 *s_regs = &tf->s2;
+  uint32  val_low32 = (uint32) s_regs[regno - 2];
+
+  release(&tgt->lock);
+
+  if (copyout(me->pagetable, user_dst,
+              (char*)&val_low32, sizeof(val_low32)) < 0)
+    return -4;
+
+  return 0;
 }
