@@ -142,12 +142,12 @@ sys_dump2(void)
 
   struct trapframe *tf = tgt->trapframe;
   uint64 *s_regs = &tf->s2;
-  uint32  val_low32 = (uint32) s_regs[regno - 2];
+  uint64 val = (uint32)s_regs[regno - 2];
 
   release(&tgt->lock);
 
   if (copyout(me->pagetable, user_dst,
-              (char*)&val_low32, sizeof(val_low32)) < 0)
+            (char*)&val, sizeof(val)) < 0)
     return -4;
 
   return 0;
