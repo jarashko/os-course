@@ -1,6 +1,8 @@
 struct stat;
 
 // system calls
+int dump(void);
+int dump2(int pid, int regno, uint64 *out);
 int fork(void);
 int exit(int) __attribute__((noreturn));
 int wait(int*);

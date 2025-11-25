@@ -83,6 +83,8 @@ void            panic(char*) __attribute__((noreturn));
 void            printfinit(void);
 
 // proc.c
+int             dump(void);
+int             dump2(int, int, uint64*);
 int             cpuid(void);
 void            exit(int);
 int             fork(void);
@@ -103,6 +105,7 @@ void            sleep(void*, struct spinlock*);
 void            userinit(void);
 int             wait(uint64);
 void            wakeup(void*);
+void            wakeup_lockless(void*);
 void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
@@ -157,6 +160,7 @@ void            uartputc_sync(int);
 int             uartgetc(void);
 
 // vm.c
+extern pagetable_t kernel_pagetable;
 void            kvminit(void);
 void            kvminithart(void);
 void            kvmmap(pagetable_t, uint64, uint64, uint64, int);
@@ -201,5 +205,6 @@ int            lst_empty(struct list*);
 void           bd_init(void*,void*);
 void           bd_free(void*);
 void           *bd_malloc(uint64);
+void           bd_print_init_info(void);
 
 
