@@ -91,3 +91,26 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_dump(void)
+{
+  return (uint64) dump();
+}
+
+uint64
+sys_dump2(void)
+{
+    int  tid;         
+    int  rix;         
+    uint64 dst_user;  
+
+    argaddr(2, &dst_user);
+    argint(0, &tid);
+    argint(1, &rix);
+
+    if (dst_user == 0)
+        return (uint64)-4;
+
+    return (uint64) dump2(tid, rix, (uint64*)dst_user);
+}
