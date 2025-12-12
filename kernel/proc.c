@@ -120,42 +120,44 @@ static struct proc*
 allocproc(void)
 {
   struct proc* p;
-  if (__atomic_load_n(&proc_count, __ATOMIC_RELAXED) >= NPROC)
-    return 0;
-  acquire(&lst_lock);
 
+  int process_count = __atomic_fetch_add(&proc_count, 1, __ATOMIC_SEQ_CST);
+  if (process_count >= NPROC) {
+    __atomic_fetch_sub(&proc_count, 1, __ATOMIC_SEQ_CST);
+    return 0;
+  }
+    
   if (!(p = bd_malloc(sizeof(struct proc)))) {
+    __atomic_fetch_sub(&proc_count, 1, __ATOMIC_SEQ_CST);
     return 0;
   }
 
   memset(p, 0, sizeof(struct proc));
-
-  p->prev = &dummyhead;
-  p->next = dummyhead.next;
-  dummyhead.next->prev = p;
-  dummyhead.next = p;
   
   p->pid = allocpid();
   p->state = USED;
   
   if ((p->kstack = (uint64)kalloc()) == 0) {
-    freeproc(p);
-    release(&lst_lock);
+    bd_free((void*)p);
+    __atomic_fetch_sub(&proc_count, 1, __ATOMIC_SEQ_CST);
     return 0;
   }
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
-    freeproc(p);
-    release(&lst_lock);
+    kfree((void*)p->kstack);
+    bd_free((void*)p);
+    __atomic_fetch_sub(&proc_count, 1, __ATOMIC_SEQ_CST);
     return 0;
   }
 
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
-    freeproc(p);
-    release(&lst_lock);
+    kfree((void*)p->trapframe);
+    kfree((void*)p->kstack);
+    bd_free((void*)p);
+    __atomic_fetch_sub(&proc_count, 1, __ATOMIC_SEQ_CST);
     return 0;
   }
 
@@ -165,7 +167,12 @@ allocproc(void)
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
-  __atomic_fetch_add(&proc_count, 1, __ATOMIC_RELAXED);
+  acquire(&lst_lock);
+  p->prev = &dummyhead;
+  p->next = dummyhead.next;
+  dummyhead.next->prev = p;
+  dummyhead.next = p;
+
   return p;
 }
 
