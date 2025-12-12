@@ -14,6 +14,7 @@
 #include "proc.h"
 
 struct devsw devsw[NDEV];
+struct devsw devsw[NDEV];
 struct {
   struct spinlock lock;
   struct file file[NFILE];
@@ -179,4 +180,3 @@ filewrite(struct file *f, uint64 addr, int n)
 
   return ret;
 }
-
