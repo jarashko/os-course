@@ -40,11 +40,21 @@ sys_sbrk(void)
 {
   uint64 addr;
   int n;
+  struct proc *p = myproc();
 
   argint(0, &n);
-  addr = myproc()->sz;
-  if(growproc(n) < 0)
-    return -1;
+  addr = p->sz;
+
+  if (n > 0) {
+    uint64 newsz;
+    if((newsz = uvmalloc(p->pagetable, addr, addr + n, PTE_W)) == 0) {
+      return -1;
+    }
+    p->sz = newsz;
+  } else if(n < 0) {
+    p->sz = uvmdealloc(p->pagetable, addr, addr + n);
+  }
+
   return addr;
 }
 
@@ -79,8 +89,7 @@ sys_kill(void)
   return kill(pid);
 }
 
-// return how many clock tick interrupts have occurred
-// since start.
+
 uint64
 sys_uptime(void)
 {
@@ -101,9 +110,9 @@ sys_dump(void)
 uint64
 sys_dump2(void)
 {
-    int  tid;         
-    int  rix;         
-    uint64 dst_user;  
+    int  tid;
+    int  rix;
+    uint64 dst_user;
 
     argaddr(2, &dst_user);
     argint(0, &tid);
