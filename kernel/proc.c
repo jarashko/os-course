@@ -254,26 +254,6 @@ userinit(void)
   release(&p->lock);
 }
 
-// Grow or shrink user memory by n bytes.
-// Return 0 on success, -1 on failure.
-int
-growproc(int n)
-{
-  uint64 sz;
-  struct proc *p = myproc();
-
-  sz = p->sz;
-  if(n > 0){
-    if((sz = uvmalloc(p->pagetable, sz, sz + n, PTE_W)) == 0) {
-      return -1;
-    }
-  } else if(n < 0){
-    sz = uvmdealloc(p->pagetable, sz, sz + n);
-  }
-  p->sz = sz;
-  return 0;
-}
-
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
 int
@@ -295,7 +275,7 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
-
+  np->ustack = p->ustack;
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
@@ -408,6 +388,7 @@ wait(uint64 addr)
         if(pp->state == ZOMBIE){
           // Found one.
           pid = pp->pid;
+          freeproc(pp);
           if(addr != 0 && copyout(p->pagetable, addr, (char *)&pp->xstate,
                                   sizeof(pp->xstate)) < 0) {
             release(&pp->lock);
@@ -433,6 +414,7 @@ wait(uint64 addr)
     sleep(p, &wait_lock);  //DOC: wait-sleep
   }
 }
+
 
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -692,4 +674,70 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+int
+dump(void)
+{
+  struct proc *me = myproc();
+  if (!me || !me->trapframe)
+    return -1;
+
+  struct trapframe *tf = me->trapframe;
+  static const char *regnames[] = {
+    "s2","s3","s4","s5","s6","s7","s8","s9","s10","s11"
+  };
+  uint64 *base = &tf->s2;
+  for (int i = 0; i < 10; i++) {
+    printf("%s = %d\n", regnames[i], (int)base[i]);
+  }
+  return 0;
+}
+
+int
+dump2(int target_pid, int regno, uint64 *out)
+{
+  struct proc *cur = myproc();
+  if (!cur)
+    return -1;
+
+  if (regno < 2 || regno > 11)
+    return -3;
+
+  struct proc *found = 0;
+  acquire(&wait_lock);
+  for (struct proc *p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if (p->pid == target_pid) { found = p; break; }
+    release(&p->lock);
+  }
+  release(&wait_lock);
+  if (!found)
+    return -2;
+
+  int allowed = 0;
+  for (struct proc *a = found; a; a = a->parent) {
+    if (a == cur) { allowed = 1; break; }
+  }
+  if (!allowed) {
+    release(&found->lock);
+    return -1;
+  }
+
+  if (!found->trapframe) {
+    release(&found->lock);
+    return -2;
+  }
+
+  uint64 *regs_base = &found->trapframe->s2;
+  uint64 val = (uint32) regs_base[regno - 2];
+  release(&found->lock);
+
+  if (copyout(cur->pagetable,
+              (uint64)out,
+              (char*)&val,
+              sizeof(val)) < 0)
+    return -4;
+
+  return 0;
 }
